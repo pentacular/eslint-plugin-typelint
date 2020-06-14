@@ -10,8 +10,11 @@ module.exports = {
         return {
             CallExpression(node) {
                 const functionName = getNameOfCalledFunction(node, context);
+console.log(`QQ/function-args-length-must-match/functionName: ${functionName}`);
                 const expectedArgs = getArgumentsForFunction(node, context);
+console.log(`QQ/function-args-length-must-match/expectedArgs: ${expectedArgs}`);
                 const args = getArgumentsForFunctionCall(node, context);
+console.log(`QQ/function-args-length-must-match/args: ${args}`);
 
                 if ((!expectedArgs || !expectedArgs.length)
                     && (args && args.length)) {

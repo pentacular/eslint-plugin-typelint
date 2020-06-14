@@ -16,8 +16,11 @@ module.exports = {
                 storeProgram(node, context);
             },
             ReturnStatement(node) {
+console.log(`QQ/node: ${node}`);
                 const functionDeclaration = getContainingFunctionDeclaration(node, context);
+console.log(`QQ/functionDeclaration: ${functionDeclaration.type}`);
                 const expectedReturnType = resolveTypeForFunctionDeclaration(functionDeclaration, context);
+console.log(`QQ/expectedReturnType: ${expectedReturnType}`);
 
                 if (!node.argument && expectedReturnType) {
                     /* bare `return;` statement */
@@ -33,7 +36,9 @@ module.exports = {
                     return;
                 }
 
+console.log(`QQ/actualReturnType/start`);
                 const actualReturnType = resolveTypeForValue(node.argument, context);
+console.log(`QQ/actualReturnType: ${actualReturnType}`);
 
                 if (!expectedReturnType.isOfType(actualReturnType)) {
                     context.report({

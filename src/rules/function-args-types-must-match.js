@@ -14,8 +14,13 @@ module.exports = {
         return {
             CallExpression(node) {
                 const functionName = getNameOfCalledFunction(node, context);
+console.log(`QQ/function-args-types-must-match/functionName: ${functionName}`);
                 const expectedArgs = getArgumentsForFunction(node, context);
+console.log(`QQ/function-args-types-much-match/expectedArgs: ${JSON.stringify(expectedArgs)}`);
+console.log(``);
+console.log(`QQ/call/getArgumentsForFunctionCall`);
                 const callArgs = getArgumentsForFunctionCall(node, context);
+console.log(`QQ/function-args-types-much-match/callArgs: ${JSON.stringify(callArgs)}`);
 
                 if (!expectedArgs || !expectedArgs.length
                     || !callArgs || !callArgs.length) {

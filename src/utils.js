@@ -125,7 +125,9 @@ function getReturnTypeFromComment(comment, context) {
         return;
     }
 
-    return new Type(...returnTag.type.split(`|`));
+    const type = new Type(...returnTag.type.split(`|`));
+console.log(`QQ/getReturnTypeFromComment: ${type}`);
+    return type;
 }
 
 /**
@@ -289,13 +291,26 @@ function resolveTypeForNodeIdentifier(node, context) {
     }
 
     const idBinding = acquireBinding(node);
+console.log(`QQ/resolveTypeForNodeIdentifier: ${idBinding}`);
 
     if (!idBinding) {
         return;
     }
 
     //    console.log(`getting type for scope definition:`, idBinding.definition.parent.type);
+console.log(`QQ/resolveTypeForNodeIdentifier/type: ${idBinding.definition.parent.type}`);
     switch (idBinding.definition.parent.type) {
+        case `ArrowFunctionExpression`: {
+            const comment = getCommentForNode(idBinding.definition, context);
+console.log(`QQ/resolveTypeForNodeIdentifier/ArrowFunctionExpression/comment: ${comment}`);
+
+            if (!comment) {
+                return;
+            }
+
+            // QQ: This should be the parameter type.
+            return getReturnTypeFromComment(comment);
+        }
         case `FunctionDeclaration`: {
             const comment = getCommentForNode(idBinding.definition, context);
 
@@ -338,9 +353,11 @@ function getCommentForNode(node, context) {
 }
 
 function resolveTypeFromComment(comment, context) {
+console.log(`QQ/resolveTypeFromComment: ${comment}`);
     if (!comment) {
         return;
     }
+console.log(`QQ/resolveTypeFromComment: ${JSON.stringify(comment)}`);
 
     const typeTag = comment.tags.find(
         (t) => t.tag === `type`
@@ -349,6 +366,8 @@ function resolveTypeFromComment(comment, context) {
     if (typeTag) {
         return new Type(...typeTag.type.split(`|`));
     }
+
+    return getReturnTypeFromComment(comment, context);
 }
 
 /**
@@ -376,19 +395,34 @@ function storeProgram(programNode, context) {
 }
 
 function resolveTypeForDeclaration(node, context) {
+console.log(`QQ/resolveTypeForDeclaration/type: ${node.type}`);
     if (node.type !== `Identifier`) {
         return;
     }
 
     const identifierComment = getCommentForNode(node, context);
+console.log(`QQ/resolveTypeForDeclaration/identifierComment: ${identifierComment}`);
 
     return resolveTypeFromComment(identifierComment, context);
 }
 
 function resolveTypeForFunctionDeclaration(node, context) {
     if (!node || node.type !== `FunctionDeclaration`) {
-        return;
+        return resolveTypeForArrowFunctionDeclaration(node, context);
     }
+
+    const identifierComment = getCommentForNode(node, context);
+
+    return getReturnTypeFromComment(identifierComment, context);
+}
+
+function resolveTypeForArrowFunctionDeclaration(node, context) {
+
+    if (!node || node.type !== 'ArrowFunctionExpression') return;
+    const parent = node.parent;
+    if (!parent || parent.type !== 'VariableDeclarator') return;
+    const grandparent = parent.parent;
+    if (!grandparent || grandparent.type !== 'VariableDeclaration') return;
 
     const identifierComment = getCommentForNode(node, context);
 
@@ -462,6 +496,7 @@ function resolveTypeForMemberExpression(node, context) {
  * @return {Type}
  */
 function resolveTypeForValue(node, context) {
+console.log(`QQ/resolveTypeForValue: ${node.type}`);
     switch (node.type) {
         case `BinaryExpression`:
             return resolveTypeForBinaryExpression(node, context);
@@ -552,9 +587,11 @@ function getArgumentsForFunctionCall(node, context) {
  * @return {Type[]}
  */
 function getArgumentsForFunction(node, context) {
+console.log(`QQ/getArgumentsForFunction/type: ${node.type}`);
     if (!node || node.type !== `CallExpression`) {
         return;
     }
+console.log(`QQ/getArgumentsForFunction/callee/type: ${node.callee.type}`);
 
     if (node.callee.type !== `Identifier`) {
         // TODO
@@ -562,32 +599,55 @@ function getArgumentsForFunction(node, context) {
     }
 
     const binding = scan.getBinding(node.callee);
+    let functionNode = binding.definition.parent;
+    let definitionNode = binding.definition.parent;
 
     if (!binding) {
+console.log(`QQ/getArgumentsForFunction/binding/none`);
         return;
-    } else if (!binding.definition.parent.params) {
+    } else {
+console.log(`QQ/getArgumentsForFunction/binding.definition.type: ${binding.definition.type}`);
+console.log(`QQ/getArgumentsForFunction/definitionNode.type: ${definitionNode.type}`);
+console.log(`QQ/getArgumentsForFunction/definitionNode.parent.type: ${definitionNode.parent.type}`);
+      if (definitionNode.type === 'VariableDeclarator') {
+console.log(`QQ/getArgumentsForFunction/upward`);
+        functionNode = definitionNode.init;
+console.log(`QQ/getArgumentsForFunction/init/type: ${functionNode.type}`);
+      }
+/*
+      if (!functionNode.params) {
+console.log(`QQ/getArgumentsForFunction/binding/[]`);
         return [];
+      }
+*/
     }
 
-    const comment = getCommentForNode(binding.definition.parent, context);
+    const comment = getCommentForNode(definitionNode, context);
+console.log(`QQ/getArgumentsForFunction/comment: ${comment}`);
 
     if (!comment) {
-        if (binding.definition.parent.type !== `FunctionDeclaration`) {
+        if (functionNode.type !== `FunctionDeclaration`) {
             return;
         }
 
-        return binding.definition.parent.params.map(
+        return definitionNode.params.map(
             (p) => new Type()
         );
     }
 
     const params = extractParams(comment, context);
+console.log(`QQ/getArgumentsForFunction/params: ${params}`);
 
-    return binding.definition.parent.params.map(function(p) {
+    return functionNode.params.map(function(p) {
+console.log(`QQ/getArgumentsForFunction/p: ${p}`);
+console.log(`QQ/getArgumentsForFunction/p/type: ${p.type}`);
         switch (p.type) {
             case `AssignmentPattern`:
                 return new Type(...params[p.left.name]);
 
+            case `Identifier`:
+console.log(`QQ/getArgumentsForFunction/Identifier: ${p.name}`);
+console.log(`QQ/getArgumentsForFunction/Identifier/Param: ${params[p.name]}`);
             case `FunctionDeclaration`:
 
 
@@ -622,14 +682,36 @@ function getContainingFunctionDeclaration(node, context) {
         funcDecl = funcDecl.parent;
     }
 
-    return funcDecl;
+    return funcDecl || getContainingArrowFunctionDeclaration(node, context);
+}
+
+function getContainingArrowFunctionDeclaration(node, context) {
+    if (!node) {
+        return;
+    }
+
+    while (true) {
+        if (!node) break;
+        const parent = node.parent;
+        if (!parent) break;;
+        const grandparent = parent.parent;
+        if (!grandparent) break;;
+        if (node.type === 'ArrowFunctionExpression' &&
+            parent.type === 'VariableDeclarator' &&
+            grandparent.type === 'VariableDeclaration') {
+          return node;
+        }
+        node = node.parent;
+    }
 }
 
 module.exports = {
     getArgumentsForFunction,
     getArgumentsForFunctionCall,
+    getContainingArrowFunctionDeclaration,
     getContainingFunctionDeclaration,
     getNameOfCalledFunction,
+    resolveTypeForArrowFunctionDeclaration,
     resolveTypeForDeclaration,
     resolveTypeForFunctionDeclaration,
     resolveTypeForNodeIdentifier,
